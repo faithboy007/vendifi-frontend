@@ -455,6 +455,14 @@
         // IMPORTANT: Replace with your LIVE keys and URLs before deploying
         const FLUTTERWAVE_PUBLIC_KEY = "FLWPUBK-c25f1f112e25bcfc83d866c18850533c-X"; // <-- LIVE KEY
         const BACKEND_URL = "https://vendifi-backend-production.up.railway.app"; // Railway backend URL
+        
+        // MARKUP CONFIGURATION - Your profit margins (must match backend)
+        const MARKUP = {
+            airtime: 0.02,      // 2% markup
+            data: 0.05,         // 5% markup
+            cableTV: 0.03,      // 3% markup
+            electricity: 0.02   // 2% markup
+        };
 
         // Paste your Firebase config object directly here
         const firebaseConfig = {
@@ -944,13 +952,27 @@
                 return;
             }
             
+            // Apply markup to amount (customer sees base price, but pays base + markup)
+            let actualAmount = details.amount;
+            if (currentTab === 'airtime') {
+                actualAmount = Math.round(details.amount * (1 + MARKUP.airtime));
+            } else if (currentTab === 'data') {
+                actualAmount = Math.round(details.amount * (1 + MARKUP.data));
+            } else if (currentTab === 'cable') {
+                actualAmount = Math.round(details.amount * (1 + MARKUP.cableTV));
+            } else if (currentTab === 'electricity') {
+                actualAmount = Math.round(details.amount * (1 + MARKUP.electricity));
+            }
+            
+            console.log(`Customer sees: ₦${details.amount}, Actually charging: ₦${actualAmount}, Markup: ₦${actualAmount - details.amount}`);
+            
             // Generate a unique transaction reference
             const tx_ref = 'VENDIFI-' + Date.now() + '-' + Math.floor((Math.random() * 1000000));
 
             FlutterwaveCheckout({
                 public_key: FLUTTERWAVE_PUBLIC_KEY,
                 tx_ref: tx_ref,
-                amount: details.amount,
+                amount: actualAmount,  // Charge actual amount with markup
                 currency: 'NGN',
                 payment_options: "card, ussd, banktransfer",
                 customer: {
