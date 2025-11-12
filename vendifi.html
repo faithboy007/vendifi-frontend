@@ -1,0 +1,1265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vendifi - Airtime, Data, &amp; Bills</title>
+    
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Flutterwave Inline JS for payments -->
+    <script src="https://checkout.flutterwave.com/v3.js"></script>
+
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        /* Custom styles to complement Tailwind */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8; /* Light blue-gray background */
+        }
+        .tab-inactive {
+            border-color: #d1d5db; /* Gray-300 */
+            color: #4b5563; /* Gray-600 */
+            background-color: white;
+        }
+        /* -- Service Specific Colors -- */
+        .tab-active-airtime { background-color: #3b82f6; border-color: #3b82f6; color: white; }
+        .tab-active-data { background-color: #8b5cf6; border-color: #8b5cf6; color: white; }
+        .tab-active-cable { background-color: #ec4899; border-color: #ec4899; color: white; }
+        .tab-active-electricity { background-color: #f59e0b; border-color: #f59e0b; color: white; }
+        
+        /* -- Subtle Background Gradients for the main card -- */
+        .card-bg-airtime { background-image: linear-gradient(to top right, white, #eff6ff); }
+        .card-bg-data { background-image: linear-gradient(to top right, white, #f5f3ff); }
+        .card-bg-cable { background-image: linear-gradient(to top right, white, #fdf2f8); }
+        .card-bg-electricity { background-image: linear-gradient(to top right, white, #fffbeb); }
+
+        /* Custom spinner for loading modal */
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #2563eb;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        /* Hide number input spinners */
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { 
+          -webkit-appearance: none; 
+          margin: 0; 
+        }
+        input[type=number] {
+          -moz-appearance: textfield;
+        }
+
+        /* --- NEW ANIMATIONS --- */
+
+        /* 1. Staggered Load-in Animation */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(15px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        .fade-in-up {
+            opacity: 0; /* Start hidden */
+            animation: fadeInUp 0.6s ease-out forwards;
+        }
+
+        /* 2. 3D Tilt Effect */
+        #main-card {
+            /* Set transition for the 'mouseleave' reset */
+            transition: transform 0.5s ease, box-shadow 0.5s ease;
+            transform-style: preserve-3d;
+        }
+
+        /* 3. Auth Modal - Ensure it works on all devices */
+        #auth-modal {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            bottom: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            z-index: 9999 !important;
+            overflow-y: auto !important;
+            -webkit-overflow-scrolling: touch !important;
+            padding: 1rem !important;
+        }
+
+        #auth-modal.hidden {
+            display: none !important;
+        }
+
+        #auth-modal > div {
+            width: 100%;
+            max-width: 28rem;
+            margin: auto;
+            position: relative;
+        }
+
+        @media (max-width: 640px) {
+            #auth-modal > div {
+                max-width: 95%;
+                padding: 1.5rem !important;
+            }
+        }
+
+        /* 4. Password Toggle Button Styles */
+        .password-container {
+            position: relative;
+        }
+
+        .password-toggle {
+            position: absolute;
+            right: 0.75rem;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 0.5rem;
+            color: #6b7280;
+            transition: color 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .password-toggle:hover {
+            color: #374151;
+        }
+
+        .password-toggle:focus {
+            outline: none;
+            color: #3b82f6;
+        }
+
+        .password-toggle svg {
+            width: 1.25rem;
+            height: 1.25rem;
+        }
+
+        input[type="password"],
+        input[type="text"].password-input {
+            padding-right: 3rem !important;
+        }
+
+    </style>
+</head>
+<body class="antialiased text-gray-800">
+
+    <div class="min-h-screen flex flex-col items-center justify-center p-4" style="perspective: 1000px;">
+
+        <div id="main-card" class="relative max-w-md w-full bg-white rounded-2xl shadow-xl p-6 md:p-8 space-y-6">
+            
+             <!-- Auth Container -->
+            <div id="auth-container" class="absolute top-4 right-6 text-sm fade-in-up" style="animation-delay: 0.4s;">
+                <!-- Logged Out State -->
+                <div id="logged-out-view">
+                    <button onclick="showAuthModal('login')" class="font-medium text-blue-600 hover:underline">Login</button>
+                    <span class="mx-1 text-gray-300">|</span>
+                    <button onclick="showAuthModal('signup')" class="font-medium text-blue-600 hover:underline">Sign Up</button>
+                </div>
+                <!-- Logged In State -->
+                <div id="logged-in-view" class="hidden items-center gap-3">
+                    <span id="user-email-display" class="text-gray-600 text-xs hidden sm:inline"></span>
+                    <button onclick="logoutUser()" class="font-medium text-red-500 hover:underline">Logout</button>
+                </div>
+            </div>
+
+            <!-- Header -->
+            <div class="text-center space-y-2 pt-8 sm:pt-4 fade-in-up" style="animation-delay: 0.1s;">
+                <div class="flex justify-center items-center gap-2">
+                     <svg id="header-icon" class="w-8 h-8 transition-colors duration-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m3.75 13.5 10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z" />
+                    </svg>
+                    <h1 class="text-2xl font-bold text-gray-900">Vendifi</h1>
+                </div>
+                <p class="text-gray-500">Instant Airtime, Data, and Bill Payments</p>
+            </div>
+
+            <!-- Service Tabs -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm text-center fade-in-up" style="animation-delay: 0.2s;">
+                <button id="tab-airtime" class="p-3 rounded-lg border font-medium transition-all duration-300" onclick="switchTab('airtime')">Airtime</button>
+                <button id="tab-data" class="p-3 rounded-lg border font-medium transition-all duration-300" onclick="switchTab('data')">Data</button>
+                <button id="tab-cable" class="p-3 rounded-lg border font-medium transition-all duration-300" onclick="switchTab('cable')">Cable TV</button>
+                <button id="tab-electricity" class="p-3 rounded-lg border font-medium transition-all duration-300" onclick="switchTab('electricity')">Electricity</button>
+            </div>
+            
+            <!-- Service Forms -->
+            <div id="service-forms" class="space-y-4 pt-4 fade-in-up" style="animation-delay: 0.3s;">
+
+                <!-- Airtime Form -->
+                <form id="form-airtime" class="space-y-4">
+                    <input type="hidden" id="airtime-service-id" value="airtime">
+                    <div>
+                        <label for="airtime-network" class="block text-sm font-medium text-gray-700 mb-1">Network</label>
+                        <select id="airtime-network" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all">
+                            <option value="MTN">MTN</option>
+                            <option value="GLO">GLO</option>
+                            <option value="AIRTEL">Airtel</option>
+                            <option value="9MOBILE">9mobile</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="airtime-phone" class="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+                        <input type="tel" id="airtime-phone" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all" placeholder="e.g., 08012345678" maxlength="11">
+                    </div>
+                    <div>
+                        <label for="airtime-amount" class="block text-sm font-medium text-gray-700 mb-1">Amount</label>
+                        <input type="number" id="airtime-amount" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all" placeholder="e.g., 1000" min="50">
+                    </div>
+                </form>
+
+                <!-- Data Form -->
+                <form id="form-data" class="hidden space-y-4">
+                    <input type="hidden" id="data-service-id" value="data">
+                    <div>
+                        <label for="data-network" class="block text-sm font-medium text-gray-700 mb-1">Network</label>
+                        <select id="data-network" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all" onchange="updateDataPlans()">
+                            <option value="MTN">MTN</option>
+                            <option value="GLO">GLO</option>
+                            <option value="AIRTEL">Airtel</option>
+                            <option value="9MOBILE">9mobile</option>
+                        </select>
+                    </div>
+                     <div>
+                        <label for="data-plan" class="block text-sm font-medium text-gray-700 mb-1">Data Plan</label>
+                        <select id="data-plan" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"></select>
+                    </div>
+                    <div>
+                        <label for="data-phone" class="block text-sm font-medium text-gray-700 mb-1">Phone Number</to-buy-for></label>
+                        <input type="tel" id="data-phone" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all" placeholder="e.g., 08012345678" maxlength="11">
+                    </div>
+                </form>
+
+                <!-- Cable TV Form -->
+                <form id="form-cable" class="hidden space-y-4">
+                    <input type="hidden" id="cable-service-id" value="cable-tv">
+                    <div>
+                        <label for="cable-provider" class="block text-sm font-medium text-gray-700 mb-1">Provider</label>
+                        <select id="cable-provider" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all">
+                            <option value="DSTV">DStv</option>
+                            <option value="GOTV">GOtv</option>
+                            <option value="STARTIMES">StarTimes</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="cable-card-number" class="block text-sm font-medium text-gray-700 mb-1">Smart Card / IUC Number</label>
+                        <input type="number" id="cable-card-number" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all" placeholder="Enter your decoder number">
+                    </div>
+                     <div>
+                        <label for="cable-amount" class="block text-sm font-medium text-gray-700 mb-1">Package Amount</label>
+                        <input type="number" id="cable-amount" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all" placeholder="e.g., 5000">
+                    </div>
+                </form>
+                
+                <!-- Electricity Form -->
+                <form id="form-electricity" class="hidden space-y-4">
+                    <input type="hidden" id="electricity-service-id" value="electricity">
+                    <div>
+                        <label for="electricity-disco" class="block text-sm font-medium text-gray-700 mb-1">Distribution Company (Disco)</label>
+                        <select id="electricity-disco" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all">
+                            <option value="IKEDC">IKEDC (Ikeja Electric)</option>
+                            <option value="EKEDC">EKEDC (Eko Electric)</option>
+                            <option value="AEDC">AEDC (Abuja Electric)</option>
+                            <!-- Add other discos as needed -->
+                        </select>
+                    </div>
+                    <div>
+                        <label for="electricity-meter-type" class="block text-sm font-medium text-gray-700 mb-1">Meter Type</label>
+                         <select id="electricity-meter-type" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all">
+                            <option value="prepaid">Prepaid</option>
+                            <option value="postpaid">Postpaid</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="electricity-meter-number" class="block text-sm font-medium text-gray-700 mb-1">Meter Number</label>
+                        <input type="number" id="electricity-meter-number" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all" placeholder="Enter your meter number">
+                    </div>
+                     <div>
+                        <label for="electricity-amount" class="block text-sm font-medium text-gray-700 mb-1">Amount</Naira></label>
+                        <input type="number" id="electricity-amount" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all" placeholder="e.g., 2000" min="1000">
+                    </div>
+                </form>
+
+                <!-- Common field for all forms -->
+                <div>
+                    <label for="customer-email" class="block text-sm font-medium text-gray-700 mb-1">Email Address (for receipt)</label>
+                    <input type="email" id="customer-email" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all" placeholder="you@example.com">
+                </div>
+
+                <!-- Payment Button -->
+                 <button id="pay-button" class="w-full text-white font-bold p-4 rounded-lg focus:outline-none focus:ring-4 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5" onclick="initiatePayment()">
+                    Pay Now
+                </button>
+            </div>
+            
+             <!-- Order Status Checker -->
+            <div class="flex justify-between items-center text-center pt-4 border-t fade-in-up" style="animation-delay: 0.4s;">
+                <a href="#" class="text-sm text-gray-500 hover:text-blue-600 hover:underline" onclick="showFeedbackModal(event)">Leave Feedback</a>
+                <a href="#" class="text-sm text-blue-600 hover:underline" onclick="showStatusChecker(event)">Check Transaction Status</a>
+            </div>
+
+        </div>
+    </div>
+    
+    <!-- MODALS (All unchanged) -->
+    <!-- Status/Result Modal -->
+    <div id="status-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl shadow-xl p-8 max-w-sm w-full text-center space-y-4">
+            <div id="modal-content" class="space-y-4">
+                 <!-- Content will be injected by JS -->
+            </div>
+            <button onclick="closeModal('status-modal')" class="w-full bg-gray-200 text-gray-800 font-bold p-3 rounded-lg hover:bg-gray-300 transition-all">Close</button>
+        </div>
+    </div>
+    
+    <!-- Status Checker Modal -->
+    <div id="status-checker-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl shadow-xl p-8 max-w-sm w-full text-center space-y-4">
+             <h3 class="text-xl font-bold">Check Order Status</h3>
+             <p class="text-sm text-gray-500">Enter the transaction reference from your receipt to check the delivery status.</p>
+             <input type="text" id="status-ref-input" class="w-full p-3 text-center border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all" placeholder="Trx_Ref_12345">
+            <div class="flex gap-2">
+                <button onclick="closeModal('status-checker-modal')" class="w-full bg-gray-200 text-gray-800 font-bold p-3 rounded-lg hover:bg-gray-300 transition-all">Cancel</button>
+                <button onclick="checkOrderStatus()" class="w-full bg-blue-600 text-white font-bold p-3 rounded-lg hover:bg-blue-700 transition-all">Check</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Auth Modal (Combined Login/Signup) -->
+    <div id="auth-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl shadow-xl p-8 max-w-sm w-full space-y-6">
+            <!-- Tab Toggle -->
+            <div class="flex bg-gray-100 rounded-lg p-1">
+                <button id="login-tab" onclick="switchAuthTab('login')" class="flex-1 py-2 px-4 rounded-md font-medium transition-all bg-white text-blue-600 shadow-sm">
+                    Login
+                </button>
+                <button id="signup-tab" onclick="switchAuthTab('signup')" class="flex-1 py-2 px-4 rounded-md font-medium transition-all text-gray-600 hover:text-gray-900">
+                    Sign Up
+                </button>
+            </div>
+
+            <!-- Login Form -->
+            <div id="login-form" class="space-y-4">
+                <h3 class="text-xl font-bold text-center">Welcome Back!</h3>
+                <div class="space-y-3">
+                    <input type="email" id="login-email" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all" placeholder="Email Address">
+                    <div class="password-container">
+                        <input type="password" id="login-password" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all password-input" placeholder="Password">
+                        <button type="button" class="password-toggle" onclick="togglePasswordVisibility('login-password', 'login-password-toggle')" aria-label="Toggle password visibility">
+                            <svg id="login-password-toggle" class="eye-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <button onclick="loginUser()" class="w-full bg-blue-600 text-white font-bold p-3 rounded-lg hover:bg-blue-700 transition-all shadow-md hover:shadow-lg">Login</button>
+            </div>
+
+            <!-- Sign Up Form -->
+            <div id="signup-form" class="hidden space-y-4">
+                <h3 class="text-xl font-bold text-center">Create Account</h3>
+                <div class="space-y-3">
+                    <input type="email" id="signup-email" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all" placeholder="Email Address">
+                    <div class="password-container">
+                        <input type="password" id="signup-password" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all password-input" placeholder="Password">
+                        <button type="button" class="password-toggle" onclick="togglePasswordVisibility('signup-password', 'signup-password-toggle')" aria-label="Toggle password visibility">
+                            <svg id="signup-password-toggle" class="eye-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <button onclick="signupUser()" class="w-full bg-blue-600 text-white font-bold p-3 rounded-lg hover:bg-blue-700 transition-all shadow-md hover:shadow-lg">Sign Up</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Feedback Modal -->
+    <div id="feedback-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl shadow-xl p-8 max-w-sm w-full space-y-4">
+            <h3 class="text-xl font-bold text-center">Share Your Feedback</h3>
+            <p class="text-sm text-gray-500 text-center">How was your experience?</p>
+            
+            <!-- Star Rating -->
+            <div class="flex justify-center items-center space-x-2 text-3xl" id="feedback-rating">
+                <svg class="w-8 h-8 text-gray-300 cursor-pointer transition-colors" fill="currentColor" viewBox="0 0 24 24" onclick="setRating(1)" onmouseover="hoverRating(1)" onmouseleave="resetRatingHover()"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27z"/></svg>
+                <svg class="w-8 h-8 text-gray-300 cursor-pointer transition-colors" fill="currentColor" viewBox="0 0 24 24" onclick="setRating(2)" onmouseover="hoverRating(2)" onmouseleave="resetRatingHover()"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27z"/></svg>
+                <svg class="w-8 h-8 text-gray-300 cursor-pointer transition-colors" fill="currentColor" viewBox="0 0 24 24" onclick="setRating(3)" onmouseover="hoverRating(3)" onmouseleave="resetRatingHover()"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27z"/></svg>
+                <svg class="w-8 h-8 text-gray-300 cursor-pointer transition-colors" fill="currentColor" viewBox="0 0 24 24" onclick="setRating(4)" onmouseover="hoverRating(4)" onmouseleave="resetRatingHover()"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27z"/></svg>
+                <svg class="w-8 h-8 text-gray-300 cursor-pointer transition-colors" fill="currentColor" viewBox="0 0 24 24" onclick="setRating(5)" onmouseover="hoverRating(5)" onmouseleave="resetRatingHover()"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27z"/></svg>
+            </div>
+            <input type="hidden" id="feedback-stars" value="0">
+            
+            <textarea id="feedback-comments" class="w-full p-3 border border-gray-300 rounded-lg" rows="3" placeholder="Tell us more..."></textarea>
+            
+            <div class="flex gap-2 pt-2">
+                <button onclick="closeModal('feedback-modal')" class="w-full bg-gray-200 text-gray-800 font-bold p-3 rounded-lg">Cancel</button>
+                <button onclick="submitFeedback()" class="w-full bg-blue-600 text-white font-bold p-3 rounded-lg">Submit</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 
+      START of Inlined JavaScript 
+      (This is the content of script.js)
+    -->
+    <script type="module">
+        // --- Firebase SDKs ---
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { 
+            getAuth, 
+            createUserWithEmailAndPassword, 
+            signInWithEmailAndPassword, 
+            onAuthStateChanged, 
+            signOut 
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { 
+            getFirestore, 
+            collection, 
+            addDoc, 
+            serverTimestamp 
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- CONFIGURATION ---
+        // IMPORTANT: Replace with your LIVE keys and URLs before deploying
+        const FLUTTERWAVE_PUBLIC_KEY = "FLWPUBK-2d71f9db1cf9d5ea5ecec5a44ea56ca9-X"; // <-- REPLACE
+        const BACKEND_URL = "https://vendifi-backend-production.up.railway.app"; // Railway backend URL
+
+        // Paste your Firebase config object directly here
+        const firebaseConfig = {
+          apiKey: "AIzaSyCvZYr5AhP10nKSBpn96sGCBDic_fsS_dA",
+          authDomain: "vendifi-96efe.firebaseapp.com",
+          projectId: "vendifi-96efe",
+          storageBucket: "vendifi-96efe.firebasestorage.app",
+          messagingSenderId: "451052606895",
+          appId: "1:451052606895:web:f83b8387c5e592d6184b5a"
+        };
+
+        // --- INITIALIZE FIREBASE ---
+        let app, auth, db;
+        try {
+            app = initializeApp(firebaseConfig);
+            auth = getAuth(app);
+            db = getFirestore(app);
+        } catch(e) {
+            console.error("Firebase initialization failed.", e);
+        }
+
+        // --- GLOBAL STATE ---
+        let currentTab = 'airtime';
+        let currentUser = null;
+        let currentRating = 0;
+
+        // --- DATA PLANS (Fetched from backend) ---
+        // Store fetched data plans in memory
+        let dataPlans = {};
+        let dataPlansLoading = false;
+        const dataPlansCache = {}; // Cache plans per network to avoid repeated fetches
+
+        // --- CORE UI FUNCTIONS ---
+
+        /**
+         * Switches the active service tab and updates UI colors.
+         * @param {string} tabName - 'airtime', 'data', 'cable', or 'electricity'
+         */
+        function switchTab(tabName) {
+            currentTab = tabName;
+            const forms = ['form-airtime', 'form-data', 'form-cable', 'form-electricity'];
+            const tabs = ['tab-airtime', 'tab-data', 'tab-cable', 'tab-electricity'];
+            const mainCard = document.getElementById('main-card');
+            const payButton = document.getElementById('pay-button');
+            const headerIcon = document.getElementById('header-icon');
+
+            // Remove all active/bg classes
+            mainCard.classList.remove('card-bg-airtime', 'card-bg-data', 'card-bg-cable', 'card-bg-electricity');
+            payButton.classList.remove('bg-blue-600', 'bg-violet-600', 'bg-pink-600', 'bg-amber-500', 'hover:bg-blue-700', 'hover:bg-violet-700', 'hover:bg-pink-700', 'hover:bg-amber-600');
+            headerIcon.classList.remove('text-blue-600', 'text-violet-600', 'text-pink-600', 'text-amber-500');
+
+            tabs.forEach(tabId => {
+                document.getElementById(tabId).classList.remove('tab-active-airtime', 'tab-active-data', 'tab-active-cable', 'tab-active-electricity');
+                document.getElementById(tabId).classList.add('tab-inactive');
+            });
+
+            forms.forEach(formId => {
+                document.getElementById(formId).classList.add('hidden');
+            });
+
+            // Add active classes for the selected tab
+            document.getElementById(`form-${tabName}`).classList.remove('hidden');
+            document.getElementById(`tab-${tabName}`).classList.add(`tab-active-${tabName}`);
+            document.getElementById(`tab-${tabName}`).classList.remove('tab-inactive');
+            
+            mainCard.classList.add(`card-bg-${tabName}`);
+
+            // Set button and icon colors
+            let colorClass, hoverColorClass, textClass;
+            switch (tabName) {
+                case 'data':
+                    colorClass = 'bg-violet-600'; hoverColorClass = 'hover:bg-violet-700'; textClass = 'text-violet-600';
+                    break;
+                case 'cable':
+                    colorClass = 'bg-pink-600'; hoverColorClass = 'hover:bg-pink-700'; textClass = 'text-pink-600';
+                    break;
+                case 'electricity':
+                    colorClass = 'bg-amber-500'; hoverColorClass = 'hover:bg-amber-600'; textClass = 'text-amber-500';
+                    break;
+                case 'airtime':
+                default:
+                    colorClass = 'bg-blue-600'; hoverColorClass = 'hover:bg-blue-700'; textClass = 'text-blue-600';
+                    break;
+            }
+            payButton.classList.add(colorClass, hoverColorClass);
+            headerIcon.classList.add(textClass);
+        }
+
+        /**
+         * Fetches data plans from the backend for a specific network.
+         * Backend endpoint: GET /api/get-data-plans
+         * Returns all products from PRODUCT_CATALOG
+         * 
+         * @param {string} network - The network name (MTN, GLO, AIRTEL, 9MOBILE)
+         * @returns {Promise<Array>} Array of data plan objects
+         */
+        async function fetchDataPlans(network) {
+            // Check cache first
+            if (dataPlansCache[network]) {
+                return dataPlansCache[network];
+            }
+
+            // Prevent multiple simultaneous requests for the same network
+            if (dataPlansLoading) {
+                return new Promise((resolve) => {
+                    const checkInterval = setInterval(() => {
+                        if (dataPlansCache[network]) {
+                            clearInterval(checkInterval);
+                            resolve(dataPlansCache[network]);
+                        }
+                    }, 100);
+                });
+            }
+
+            try {
+                dataPlansLoading = true;
+                // Fetch ALL products from backend
+                const response = await fetch(`${BACKEND_URL}/api/get-data-plans`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch data plans: ${response.statusText}`);
+                }
+
+                const responseData = await response.json();
+                
+                // Backend returns: { success: true, data: { airtime: [...], data: [...], cableTV: [...], electricity: [...] } }
+                if (responseData.success && responseData.data && responseData.data.data) {
+                    // Filter plans for the selected network
+                    const allDataPlans = responseData.data.data;
+                    const networkPlans = allDataPlans.filter(plan => 
+                        plan.network && plan.network.toUpperCase() === network.toUpperCase()
+                    );
+                    
+                    // Cache the plans
+                    dataPlansCache[network] = networkPlans;
+                    dataPlans[network] = networkPlans;
+                    
+                    return networkPlans;
+                } else {
+                    console.error('Unexpected backend response format:', responseData);
+                    return [];
+                }
+            } catch (error) {
+                console.error('Error fetching data plans:', error);
+                // Return empty array on error
+                return [];
+            } finally {
+                dataPlansLoading = false;
+            }
+        }
+
+        /**
+         * Populates the data plan dropdown based on the selected network.
+         * Fetches plans from backend if not already cached.
+         */
+        async function updateDataPlans() {
+            const network = document.getElementById('data-network').value;
+            const planSelect = document.getElementById('data-plan');
+
+            // Show loading state
+            planSelect.innerHTML = '<option value="">Loading plans...</option>';
+            planSelect.disabled = true;
+
+            try {
+                // Fetch plans from backend
+                const plans = await fetchDataPlans(network);
+
+                planSelect.innerHTML = ''; // Clear loading message
+                planSelect.disabled = false;
+
+                if (!plans || plans.length === 0) {
+                    planSelect.innerHTML = '<option value="">No plans available</option>';
+                    return;
+                }
+
+                // Build dropdown options dynamically
+                plans.forEach(plan => {
+                    const option = document.createElement('option');
+                    // Use backend PRODUCT_CATALOG field names
+                    option.value = plan.planId;  // planId from backend
+                    option.textContent = `${plan.name} - ₦${plan.price}`;  // name and price from backend
+                    option.dataset.amount = plan.price;  // price for payment
+                    planSelect.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error updating data plans:', error);
+                planSelect.innerHTML = '<option value="">Error loading plans</option>';
+                planSelect.disabled = false;
+            }
+        }
+
+        // --- MODAL FUNCTIONS ---
+
+        /**
+         * Displays a custom modal.
+         * @param {string} title - The title of the modal.
+         * @param {string} message - The body text of the modal.
+         * @param {'success'|'error'|'loading'|'info'} type - The type of modal to show.
+         */
+        function showModal(title, message, type = 'info') {
+            const modal = document.getElementById('status-modal');
+            const content = document.getElementById('modal-content');
+            let iconHtml = '';
+
+            switch (type) {
+                case 'success':
+                    iconHtml = `<svg class="w-16 h-16 text-green-500 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`;
+                    break;
+                case 'error':
+                    iconHtml = `<svg class="w-16 h-16 text-red-500 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`;
+                    break;
+                case 'loading':
+                    iconHtml = `<div class="loader mx-auto"></div>`;
+                    break;
+                case 'info':
+                default:
+                    iconHtml = `<svg class="w-16 h-16 text-blue-500 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`;
+                    break;
+            }
+
+            content.innerHTML = `
+                ${iconHtml}
+                <h3 class="text-xl font-bold">${title}</h3>
+                <p class="text-sm text-gray-600">${message}</p>
+            `;
+            modal.classList.remove('hidden');
+        }
+
+        /**
+         * Closes any active modal.
+         * @param {string} modalId - The ID of the modal to close.
+         */
+        function closeModal(modalId) {
+            // IMPORTANT: Prevent closing auth modal if user is not authenticated
+            // This ensures users must login before using the app
+            if (modalId === 'auth-modal' && !currentUser) {
+                console.log('Auth modal cannot be closed - user must login first');
+                return; // Don't close if not authenticated
+            }
+            
+            const modal = document.getElementById(modalId);
+            if (modal) {
+                modal.classList.add('hidden');
+                // Restore body scroll when auth modal is closed
+                if (modalId === 'auth-modal') {
+                    document.body.style.overflow = '';
+                    modal.style.display = '';
+                }
+                // Clear content of status modal on close
+                if (modalId === 'status-modal') {
+                     document.getElementById('modal-content').innerHTML = '';
+                }
+            }
+        }
+
+        /**
+         * Shows the modal for checking transaction status.
+         */
+        function showStatusChecker(event) {
+            event.preventDefault(); // Prevent default link behavior
+            document.getElementById('status-checker-modal').classList.remove('hidden');
+        }
+
+        /**
+         * Shows the auth modal and sets the initial tab.
+         * @param {'login'|'signup'} modalType 
+         */
+        function showAuthModal(modalType) {
+            const modal = document.getElementById('auth-modal');
+            modal.classList.remove('hidden');
+            // Force display to ensure it shows on all devices (mobile and desktop)
+            modal.style.display = 'flex';
+            modal.style.position = 'fixed';
+            modal.style.zIndex = '9999';
+            // Prevent body scroll when modal is open
+            document.body.style.overflow = 'hidden';
+            switchAuthTab(modalType || 'login');
+        }
+
+        /**
+         * Switches between login and signup tabs within the modal.
+         * @param {'login'|'signup'} tab 
+         */
+        function switchAuthTab(tab) {
+            const loginTab = document.getElementById('login-tab');
+            const signupTab = document.getElementById('signup-tab');
+            const loginForm = document.getElementById('login-form');
+            const signupForm = document.getElementById('signup-form');
+
+            if (tab === 'login') {
+                // Activate login tab
+                loginTab.classList.add('bg-white', 'text-blue-600', 'shadow-sm');
+                loginTab.classList.remove('text-gray-600', 'hover:text-gray-900');
+                signupTab.classList.remove('bg-white', 'text-blue-600', 'shadow-sm');
+                signupTab.classList.add('text-gray-600', 'hover:text-gray-900');
+                
+                loginForm.classList.remove('hidden');
+                signupForm.classList.add('hidden');
+            } else {
+                // Activate signup tab
+                signupTab.classList.add('bg-white', 'text-blue-600', 'shadow-sm');
+                signupTab.classList.remove('text-gray-600', 'hover:text-gray-900');
+                loginTab.classList.remove('bg-white', 'text-blue-600', 'shadow-sm');
+                loginTab.classList.add('text-gray-600', 'hover:text-gray-900');
+                
+                signupForm.classList.remove('hidden');
+                loginForm.classList.add('hidden');
+            }
+        }
+
+        /**
+         * Toggles password visibility between hidden and visible.
+         * @param {string} passwordId - The ID of the password input field.
+         * @param {string} iconId - The ID of the eye icon SVG element.
+         */
+        function togglePasswordVisibility(passwordId, iconId) {
+            const passwordInput = document.getElementById(passwordId);
+            const eyeIcon = document.getElementById(iconId);
+            
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                // Change to eye-slash icon (hidden)
+                eyeIcon.innerHTML = `
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"></path>
+                `;
+            } else {
+                passwordInput.type = 'password';
+                // Change back to eye icon (visible)
+                eyeIcon.innerHTML = `
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                `;
+            }
+        }
+
+        /**
+         * Shows the feedback modal.
+         */
+        function showFeedbackModal(event) {
+            event.preventDefault(); // Prevent default link behavior
+            // Reset rating on open
+            setRating(0); 
+            document.getElementById('feedback-comments').value = '';
+            document.getElementById('feedback-modal').classList.remove('hidden');
+        }
+
+        /**
+         * Sets the star rating in the feedback modal.
+         * @param {number} rating - The number of stars (1-5).
+         */
+        function setRating(rating) {
+            currentRating = rating;
+            document.getElementById('feedback-stars').value = rating;
+            resetRatingHover();
+        }
+
+        /**
+         * Visually highlights stars on hover.
+         * @param {number} rating - The number of stars to highlight.
+         */
+        function hoverRating(rating) {
+            const stars = document.querySelectorAll('#feedback-rating svg');
+            stars.forEach((star, index) => {
+                if (index < rating) {
+                    star.classList.remove('text-gray-300');
+                    star.classList.add('text-yellow-400');
+                } else {
+                    star.classList.remove('text-yellow-400');
+                    star.classList.add('text-gray-300');
+                }
+            });
+        }
+
+        /**
+         * Resets the star hover effect to show the selected rating.
+         */
+        function resetRatingHover() {
+            const stars = document.querySelectorAll('#feedback-rating svg');
+            stars.forEach((star, index) => {
+                if (index < currentRating) {
+                    star.classList.remove('text-gray-300');
+                    star.classList.add('text-yellow-400');
+                } else {
+                    star.classList.remove('text-yellow-400');
+                    star.classList.add('text-gray-300');
+                }
+            });
+        }
+
+        /**
+         * Submits the feedback (dummy function).
+         */
+        async function submitFeedback() {
+            const rating = document.getElementById('feedback-stars').value;
+            const comments = document.getElementById('feedback-comments').value.trim();
+            
+            if (rating === '0' && comments === '') {
+                showModal('Feedback Empty', 'Please select a rating or leave a comment.', 'error');
+                return;
+            }
+
+            closeModal('feedback-modal');
+            showModal('Submitting...', 'Sending your feedback.', 'loading');
+            
+            try {
+                // Add a new document in collection "feedback"
+                await addDoc(collection(db, "feedback"), {
+                    rating: parseInt(rating, 10),
+                    comments: comments,
+                    userEmail: currentUser ? currentUser.email : 'anonymous',
+                    timestamp: serverTimestamp()
+                });
+                
+                showModal('Thank You!', 'Your feedback has been received.', 'success');
+                
+            } catch (error) {
+                console.error("Error adding feedback: ", error);
+                showModal('Submission Failed', 'Could not submit your feedback at this time. Please try again later.', 'error');
+            }
+        }
+
+        // --- PAYMENT & BACKEND LOGIC ---
+
+        /**
+         * Gathers all transaction details from the active form.
+         * @returns {object|null} A details object or null if validation fails.
+         */
+        function getTransactionDetails() {
+            const email = document.getElementById('customer-email').value.trim();
+            if (!email || !/\S+@\S+\.\S+/.test(email)) {
+                showModal('Invalid Input', 'Please enter a valid email address.', 'error');
+                return null;
+            }
+
+            let details = { email, amount: 0, meta: { service: currentTab } };
+
+            if (currentTab === 'airtime') {
+                details.amount = parseInt(document.getElementById('airtime-amount').value, 10);
+                details.meta.network = document.getElementById('airtime-network').value;
+                details.meta.phone = document.getElementById('airtime-phone').value;
+                if (!details.meta.phone || details.meta.phone.length < 11 || !details.amount || details.amount < 50) {
+                    showModal('Invalid Input', 'Please check phone number and amount (min ₦50).', 'error'); return null;
+                }
+            } else if (currentTab === 'data') {
+                const planSelect = document.getElementById('data-plan');
+                const selectedOption = planSelect.options[planSelect.selectedIndex];
+                details.amount = parseInt(selectedOption.dataset.amount, 10);
+                details.meta.planId = selectedOption.value;
+                details.meta.network = document.getElementById('data-network').value;
+                details.meta.phone = document.getElementById('data-phone').value;
+                 if (!details.meta.phone || details.meta.phone.length < 11 || !details.amount) {
+                    showModal('Invalid Input', 'Please check phone number and select a valid data plan.', 'error'); return null;
+                }
+            } else if (currentTab === 'cable') {
+                details.amount = parseInt(document.getElementById('cable-amount').value, 10);
+                details.meta.provider = document.getElementById('cable-provider').value;
+                details.meta.smartCard = document.getElementById('cable-card-number').value;
+                if (!details.meta.smartCard || !details.amount || details.amount < 100) {
+                    showModal('Invalid Input', 'Please check smart card number and package amount.', 'error'); return null;
+                }
+            } else if (currentTab === 'electricity') {
+                details.amount = parseInt(document.getElementById('electricity-amount').value, 10);
+                details.meta.disco = document.getElementById('electricity-disco').value;
+                details.meta.meterType = document.getElementById('electricity-meter-type').value;
+                details.meta.meterNumber = document.getElementById('electricity-meter-number').value;
+                if (!details.meta.meterNumber || !details.amount || details.amount < 1000) {
+                    showModal('Invalid Input', 'Please check meter number and amount (min ₦1000).', 'error'); return null;
+                }
+            }
+            return details;
+        }
+
+        /**
+         * Initiates the Flutterwave payment modal.
+         */
+        function initiatePayment() {
+            const details = getTransactionDetails();
+            if (!details) return; // Validation failed
+            
+            if (!FLUTTERWAVE_PUBLIC_KEY || FLUTTERWAVE_PUBLIC_KEY.includes("xxxxxxxx")) {
+                showModal("Configuration Error", "Payment gateway is not configured. Please contact support.", 'error'); 
+                return;
+            }
+            
+            // Generate a unique transaction reference
+            const tx_ref = 'VENDIFI-' + Date.now() + '-' + Math.floor((Math.random() * 1000000));
+
+            FlutterwaveCheckout({
+                public_key: FLUTTERWAVE_PUBLIC_KEY,
+                tx_ref: tx_ref,
+                amount: details.amount,
+                currency: 'NGN',
+                payment_options: "card, ussd, banktransfer",
+                customer: {
+                    email: details.email,
+                    phone_number: details.meta.phone || '', // Use phone from meta if available
+                },
+                meta: details.meta, // Pass all our service metadata to Flutterwave
+                customizations: {
+                    title: "Vendifi",
+                    description: "Instant Airtime, Data, & Bill Payments",
+                    logo: "https://placehold.co/100x100/3b82f6/white?text=V", // Placeholder logo
+                },
+                callback: function(response) {
+                    console.log("Flutterwave callback response:", response);
+                    // Verify the transaction only if successful
+                    if (response.status === "successful" || response.status === "completed") {
+                        verifyPaymentAndDeliver(response.tx_ref);
+                    } else {
+                        showModal('Payment Failed', 'Your payment was not successful. Please try again.', 'error');
+                    }
+                },
+                onclose: function() {
+                    console.log('Payment window closed.');
+                }
+            });
+        }
+
+        /**
+         * Sends the transaction reference to the backend for verification and fulfillment.
+         * @param {string} reference - The transaction reference.
+         */
+        async function verifyPaymentAndDeliver(reference) {
+            showModal('Processing...', 'We are verifying your payment and delivering your service. Please wait.', 'loading');
+            
+            try {
+                const response = await fetch(`${BACKEND_URL}/api/process-transaction`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ reference: reference })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok && result.success) {
+                    showModal('Purchase Successful!', result.message, 'success');
+                } else {
+                    showModal('Transaction Failed', result.message || 'An unknown error occurred.', 'error');
+                }
+            } catch (error) {
+                console.error('Verification Error:', error);
+                showModal('Network Error', 'Could not connect to the server. Please check your internet connection or try again later.', 'error');
+            }
+        }
+
+        /**
+         * Fetches the status of a transaction from the backend.
+         */
+        async function checkOrderStatus() {
+            const reference = document.getElementById('status-ref-input').value;
+            if (!reference) {
+                showModal('Invalid Input', 'Please enter a transaction reference.', 'error');
+                return;
+            }
+            
+            closeModal('status-checker-modal');
+            showModal('Checking Status...', `Checking status for ${reference}. Please wait.`, 'loading');
+
+            try {
+                const response = await fetch(`${BACKEND_URL}/api/check-status`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ reference: reference })
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    showModal('Transaction Status', `Status for ${reference}: <strong>${result.status}</strong>. ${result.message}`, 'info');
+                } else {
+                    showModal('Error', result.message || 'Could not retrieve status for that transaction.', 'error');
+                }
+            } catch (error) {
+                console.error('Status Check Error:', error);
+                showModal('Network Error', 'Could not connect to the server. Please check your internet connection.', 'error');
+            }
+        }
+
+        // --- FIREBASE AUTH FUNCTIONS ---
+
+        async function loginUser() {
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+            if (!email || !password) {
+                showModal('Error', 'Please enter both email and password.', 'error');
+                return;
+            }
+            
+            showModal('Logging In...', 'Please wait.', 'loading');
+            
+            try {
+                // Step 1: Firebase authentication
+                const userCredential = await signInWithEmailAndPassword(auth, email, password);
+                const user = userCredential.user;
+                
+                // Step 2: Get ID token
+                const idToken = await user.getIdToken();
+                
+                // Step 3: Verify with backend (with graceful degradation)
+                try {
+                    const response = await fetch(`${BACKEND_URL}/api/auth/verify-token`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ idToken })
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (!result.success && response.status !== 503) {
+                        console.warn('Backend verification failed, but continuing with Firebase auth');
+                    }
+                } catch (backendError) {
+                    // Backend unavailable, but Firebase auth succeeded - continue anyway
+                    console.warn('Backend unavailable, continuing with Firebase auth only:', backendError);
+                }
+                
+                // Close modal and show success (regardless of backend verification)
+                const authModal = document.getElementById('auth-modal');
+                authModal.classList.add('hidden');
+                authModal.style.display = '';
+                document.body.style.overflow = '';
+                showModal('Welcome Back!', 'You are now logged in.', 'success');
+                
+            } catch (error) {
+                console.error('Login error:', error);
+                if (error.code === 'auth/wrong-password') {
+                    showModal('Login Failed', 'Incorrect password. Please try again.', 'error');
+                } else if (error.code === 'auth/user-not-found') {
+                    showModal('Login Failed', 'No account found with this email.', 'error');
+                } else if (error.code === 'auth/invalid-email') {
+                    showModal('Login Failed', 'Invalid email address.', 'error');
+                } else {
+                    showModal('Login Failed', error.message, 'error');
+                }
+            }
+        }
+
+        async function signupUser() {
+            const email = document.getElementById('signup-email').value;
+            const password = document.getElementById('signup-password').value;
+            if (!email || !password) {
+                showModal('Error', 'Please enter both email and password.', 'error');
+                return;
+            }
+            
+            showModal('Signing Up...', 'Creating your account.', 'loading');
+            
+            try {
+                // Step 1: Register via backend
+                const response = await fetch(`${BACKEND_URL}/api/auth/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        email, 
+                        password,
+                        displayName: email.split('@')[0]
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    // Step 2: Auto-login after successful registration
+                    showModal('Success!', 'Account created! Logging you in...', 'success');
+                    // Clear signup fields
+                    document.getElementById('signup-email').value = '';
+                    document.getElementById('signup-password').value = '';
+                    // Copy credentials to login form and trigger login
+                    document.getElementById('login-email').value = email;
+                    document.getElementById('login-password').value = password;
+                    setTimeout(async () => {
+                        await loginUser();
+                    }, 1500);
+                } else {
+                    throw new Error(result.message || 'Registration failed');
+                }
+            } catch (error) {
+                console.error('Signup error:', error);
+                showModal('Signup Failed', error.message, 'error');
+            }
+        }
+
+
+        function logoutUser() {
+            signOut(auth).then(() => {
+                showModal('Logged Out', 'You have been successfully logged out.', 'info');
+            }).catch((error) => {
+                showModal('Error', 'Could not log you out. Please try again.', 'error');
+            });
+        }
+
+        // --- INITIALIZATION ---
+
+        // Track if this is the first auth state check
+        let isFirstAuthCheck = true;
+
+        // Listen for auth state changes
+        if (auth) {
+            onAuthStateChanged(auth, (user) => {
+                if (user) {
+                    // User is signed in
+                    currentUser = user;
+                    document.getElementById('logged-in-view').classList.remove('hidden');
+                    document.getElementById('logged-in-view').classList.add('flex');
+                    document.getElementById('logged-out-view').classList.add('hidden');
+                    document.getElementById('user-email-display').textContent = user.email;
+                    document.getElementById('customer-email').value = user.email; // Auto-fill email
+                    document.getElementById('customer-email').readOnly = true;
+                    // Close login modal if user is authenticated
+                    closeModal('auth-modal');
+                } else {
+                    // User is signed out
+                    currentUser = null;
+                    document.getElementById('logged-in-view').classList.add('hidden');
+                    document.getElementById('logged-in-view').classList.remove('flex');
+                    document.getElementById('logged-out-view').classList.remove('hidden');
+                    document.getElementById('user-email-display').textContent = '';
+                    document.getElementById('customer-email').value = ''; // Clear email field
+                    document.getElementById('customer-email').readOnly = false;
+                    
+                    // ALWAYS show login modal for unauthenticated users
+                    // This happens on first load and whenever user logs out
+                    if (isFirstAuthCheck) {
+                        // Use requestAnimationFrame to ensure DOM is ready, then show modal
+                        requestAnimationFrame(() => {
+                            setTimeout(() => {
+                                showAuthModal('login');
+                            }, 300);
+                        });
+                    } else {
+                        // If user logs out after being logged in, show modal immediately
+                        showAuthModal('login');
+                    }
+                }
+                isFirstAuthCheck = false;
+            });
+        } else {
+            // Firebase not initialized, still show login modal
+            setTimeout(() => {
+                showAuthModal('login');
+            }, 500);
+        }
+
+        // --- GLOBAL EVENT HANDLERS ---
+        // Manually attach functions to the window object
+        // so that inline onclick="" attributes in index.html can find them.
+        window.switchTab = switchTab;
+        window.updateDataPlans = updateDataPlans;
+        window.initiatePayment = initiatePayment;
+        window.showModal = showModal;
+        window.closeModal = closeModal;
+        window.showStatusChecker = showStatusChecker;
+        window.checkOrderStatus = checkOrderStatus;
+        window.showAuthModal = showAuthModal;
+        window.switchAuthTab = switchAuthTab;
+        window.togglePasswordVisibility = togglePasswordVisibility;
+        window.loginUser = loginUser;
+        window.signupUser = signupUser;
+        window.logoutUser = logoutUser;
+        window.showFeedbackModal = showFeedbackModal;
+        window.submitFeedback = submitFeedback;
+        window.setRating = setRating;
+        window.hoverRating = hoverRating;
+        window.resetRatingHover = resetRatingHover;
+
+        // --- PAGE LOAD INITIALIZATION ---
+        document.addEventListener('DOMContentLoaded', () => {
+            switchTab('airtime'); // Set the initial active tab
+            updateDataPlans();    // Populate the data plans for the default network
+            
+            // --- NEW 3D TILT ANIMATION LOGIC ---
+            const card = document.getElementById('main-card');
+            const maxRotation = 8; // Max tilt in degrees
+
+            card.addEventListener('mousemove', (e) => {
+                const rect = card.getBoundingClientRect();
+                const x = e.clientX - rect.left; // Mouse x position relative to card
+                const y = e.clientY - rect.top;  // Mouse y position relative to card
+                
+                const { width, height } = rect;
+                
+                // Calculate rotation:
+                // (x / width) goes from 0 to 1. Subtract 0.5 to make it -0.5 to 0.5 (center).
+                const rotateY = maxRotation * ((x / width) - 0.5);
+                // (y / height) goes from 0 to 1. Subtract 0.5...
+                const rotateX = -maxRotation * ((y / height) - 0.5); // Negative so it tilts away from mouse
+
+                // Apply the 3D transform.
+                // We set a 'fast' transition here for smooth tracking.
+                card.style.transition = 'transform 0.1s linear';
+                card.style.transform = `perspective(1000px) scale(1.03) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
+            });
+
+            card.addEventListener('mouseenter', () => {
+                // On hover, increase the shadow
+                card.style.boxShadow = '0 25px 50px -12px rgba(0, 0, 0, 0.25)';
+            });
+
+            card.addEventListener('mouseleave', () => {
+                // On leave, reset everything with a smooth 'ease' transition
+                card.style.transition = 'transform 0.5s ease, box-shadow 0.5s ease';
+                card.style.transform = 'perspective(1000px) scale(1) rotateX(0) rotateY(0)';
+                card.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)';
+            });
+        });
+    </script>
+    <!-- END of Inlined JavaScript -->
+
+</body>
+</html>
