@@ -37,23 +37,40 @@ let currentTab = 'airtime';
 let currentUser = null;
 
 // --- DATA PLANS (Hardcoded for frontend) ---
-// This map must correspond to the 'reloadlyOperatorIdMap' in your server.js
+// This map must correspond to the PRODUCT_CATALOG in your server.js
 const dataPlans = {
     "MTN": [
-        { id: "MTN-500", text: "1GB for 30 Days - ₦500", amount: 500 },
-        { id: "MTN-1000", text: "2.5GB for 30 Days - ₦1000", amount: 1000 }
+        { id: "MTN-1GB-DAILY", text: "1GB Daily - ₦300", amount: 300 },
+        { id: "MTN-1GB-WEEKLY", text: "1GB Weekly - ₦800", amount: 800 },
+        { id: "MTN-2GB-MONTHLY", text: "2GB Monthly - ₦1500", amount: 1500 },
+        { id: "MTN-6GB-WEEKLY", text: "6GB Weekly - ₦2500", amount: 2500 },
+        { id: "MTN-7GB-MONTHLY", text: "7GB Monthly - ₦3500", amount: 3500 },
+        { id: "MTN-100GB-MONTHLY", text: "100GB Monthly - ₦20000", amount: 20000 }
     ],
     "GLO": [
-        { id: "GLO-500", text: "1.2GB for 30 Days - ₦500", amount: 500 },
-        { id: "GLO-1000", text: "3GB for 30 Days - ₦1000", amount: 1000 }
+        { id: "GLO-1GB-DAILY", text: "1GB Daily - ₦350", amount: 350 },
+        { id: "GLO-2GB-DAILY", text: "2GB Daily - ₦500", amount: 500 },
+        { id: "GLO-2.6GB-MONTHLY", text: "2.6GB Monthly - ₦1000", amount: 1000 },
+        { id: "GLO-7GB-WEEKLY", text: "7GB Weekly - ₦1500", amount: 1500 },
+        { id: "GLO-10GB-MONTHLY", text: "10GB Monthly - ₦2500", amount: 2500 },
+        { id: "GLO-50GB-MONTHLY", text: "50GB Monthly - ₦10000", amount: 10000 },
+        { id: "GLO-107GB-MONTHLY", text: "107GB Monthly - ₦20000", amount: 20000 }
     ],
     "AIRTEL": [
-        { id: "AIRTEL-500", text: "1GB for 30 Days - ₦500", amount: 500 },
-        { id: "AIRTEL-1000", text: "3GB for 30 Days - ₦1000", amount: 1000 }
+        { id: "AIRTEL-1GB-DAILY", text: "1GB Daily - ₦300", amount: 300 },
+        { id: "AIRTEL-1GB-WEEKLY", text: "1GB Weekly - ₦800", amount: 800 },
+        { id: "AIRTEL-2GB-MONTHLY", text: "2GB Monthly - ₦1500", amount: 1500 },
+        { id: "AIRTEL-3.5GB-WEEKLY", text: "3.5GB Weekly - ₦1500", amount: 1500 },
+        { id: "AIRTEL-8GB-MONTHLY", text: "8GB Monthly - ₦3000", amount: 3000 },
+        { id: "AIRTEL-60GB-MONTHLY", text: "60GB Monthly - ₦15000", amount: 15000 },
+        { id: "AIRTEL-100GB-MONTHLY", text: "100GB Monthly - ₦20000", amount: 20000 }
     ],
     "9MOBILE": [
-        { id: "9MOBILE-500", text: "1GB for 30 Days - ₦500", amount: 500 },
-        { id: "9MOBILE-1000", text: "3GB for 30 Days - ₦1000", amount: 1000 }
+        { id: "9MOBILE-1GB-DAILY", text: "1GB Daily - ₦300", amount: 300 },
+        { id: "9MOBILE-2GB-MONTHLY", text: "2GB Monthly - ₦1000", amount: 1000 },
+        { id: "9MOBILE-7GB-WEEKLY", text: "7GB Weekly - ₦1500", amount: 1500 },
+        { id: "9MOBILE-4.5GB-MONTHLY", text: "4.5GB Monthly - ₦2000", amount: 2000 },
+        { id: "9MOBILE-11GB-MONTHLY", text: "11GB Monthly - ₦4000", amount: 4000 }
     ]
 };
 
