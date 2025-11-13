@@ -11,7 +11,8 @@ import {
 // --- CONFIGURATION ---
 // IMPORTANT: Replace with your LIVE keys and URLs before deploying
 const FLUTTERWAVE_PUBLIC_KEY = "FLWPUBK-2d71f9db1cf9d5ea5ecec5a44ea56ca9-X"; // <-- REPLACE
-const BACKEND_URL = "https://vendifi-backend-3.onrender.com"; // <-- REPLACE with your live backend URL
+const BACKEND_URL = "https://vendifi-backend-production.up.railway.app"; // Live backend on Railway
+// const BACKEND_URL = "http://localhost:3000"; // Local backend (uncomment for local testing)
 
 // Paste your Firebase config object directly here
 const firebaseConfig = {
