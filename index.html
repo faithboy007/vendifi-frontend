@@ -214,11 +214,13 @@
                     <div>
                         <label for="airtime-network" class="block text-sm font-medium text-gray-700 mb-1">Network</label>
                         <select id="airtime-network" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all">
-                            <option value="MTN">MTN</option>
-                            <option value="GLO">GLO</option>
                             <option value="AIRTEL">Airtel</option>
                             <option value="9MOBILE">9mobile</option>
+                            <!-- MTN and GLO not available yet - Register with VTPass to enable -->
                         </select>
+                    </div>
+                    <div class="text-sm text-amber-600 bg-amber-50 p-3 rounded-lg border border-amber-200">
+                        ⚠️ Currently only Airtel and 9Mobile airtime available. MTN and GLO coming soon!
                     </div>
                     <div>
                         <label for="airtime-phone" class="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
